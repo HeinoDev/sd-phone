@@ -36,7 +36,19 @@ local sd = exports['sd-phone']
 lib.callback.register('sd-phone:server:compat:gks:self', function(source)
     local identity = phones.forSource(source)
     if not identity then return nil end
-    return { phoneId = identity, number = settings.ensurePhoneNumber(identity) }
+    local number = settings.ensurePhoneNumber(identity)
+    if number and phones.forSource(source) == identity then statebags.setGksNumber(source, number) end
+    return { phoneId = identity, number = number }
+end)
+
+AddEventHandler('sd-phone:server:statebags:report', function(payload)
+    if type(payload) == 'table' and payload.battery ~= nil then
+        statebags.setBattery(source, payload.battery, true)
+    end
+end)
+
+RegisterNetEvent('sd-phone:server:compat:gks:signal', function(broken)
+    statebags.setGksSignal(source, broken)
 end)
 
 ---Backs IsInCall() and IsCall(): whether the caller is in a call or a pending ring. The call read

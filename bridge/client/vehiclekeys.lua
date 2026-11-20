@@ -114,7 +114,12 @@ function M.setLocked(plate, locked)
         PlaySoundFromEntity(-1, 'Remote_Control_Fob', veh, 'PI_Menu_Sounds', false, 0)
         fobLights(veh)
     elseif sys == 'Renewed-Vehiclekeys' then
-        Entity(veh).state:set('vehicleLock', { lock = lockstate, sound = true }, true)
+        if NetworkGetEntityIsNetworked(veh) then
+            local applied = lib.callback.await('sd-phone:server:garages:setRenewedLock', false, NetworkGetNetworkIdFromEntity(veh), locked)
+            if applied == nil then return nil end
+        else
+            Entity(veh).state:set('vehicleLock', { lock = lockstate, sound = true }, false)
+        end
         fobLights(veh)
     else
         SetVehicleDoorsLocked(veh, lockstate)

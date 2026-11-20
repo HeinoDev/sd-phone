@@ -25,3 +25,4 @@ tests/
 # Local-only migration test helper (never shipped).
 server/devswap.lua
 .secret
+web/bun.lock

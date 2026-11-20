@@ -8,6 +8,7 @@ local config = require 'configs.config'
 ---@type table Audible-ring helpers (shared.callring): whose phone rings out loud, and which tone a
 ---bystander is able to play.
 local callring = require 'shared.callring'
+local FRAME_COLORS = require 'shared.framecolors'
 
 ---@type table State bag module; the table returned at end of file. Publishes the phone's live
 ---per-player state onto FiveM player state bags, where any resource can read it without an export
@@ -57,10 +58,21 @@ end
 ---the value mirrors the client's display counter rather than a persisted charge.
 ---@param source number player server id
 ---@param level number 0-100
-function statebags.setBattery(source, level)
+---@param mirrorGks boolean|nil also publish the GKSPhone battery key
+function statebags.setBattery(source, level, mirrorGks)
     local n = tonumber(level)
-    if not n then return end
-    put(source, 'batteryLevel', math.max(0, math.min(100, math.floor(n))))
+    if not n or n ~= n then return end
+    local battery = math.max(0, math.min(100, math.floor(n)))
+    put(source, 'batteryLevel', battery)
+    if mirrorGks then put(source, 'phoneBattery', battery) end
+end
+
+function statebags.setGksNumber(source, number)
+    put(source, 'phoneNumber', number)
+end
+
+function statebags.setGksSignal(source, broken)
+    if type(broken) == 'boolean' then put(source, 'phoneSignal', broken) end
 end
 
 ---Publishes airplane mode, read from the player's stored settings.
@@ -244,7 +256,33 @@ AddEventHandler('playerDropped', function()
     put(src, 'softOpen', false)
     put(src, 'phoneDisabled', false)
     put(src, 'phoneRinging', nil)
+    put(src, 'sdPhone', false)
     published[src] = nil
+end)
+
+---Replicate the caller's display pose, preserving the value format used by remote props.
+RegisterNetEvent('sd-phone:server:statebags:hold', function(color, folded)
+    if not config.Phone.PropVisibleToOthers then return end
+    local src = source
+    if color == false then
+        put(src, 'sdPhone', false)
+    elseif type(color) == 'string' and FRAME_COLORS[color] then
+        if folded ~= true then
+            put(src, 'sdPhone', color)
+            return
+        end
+        local previous = published[src] and published[src].sdPhone
+        if type(previous) ~= 'table' or previous.c ~= color then
+            put(src, 'sdPhone', { c = color, f = true })
+        end
+    end
+end)
+
+AddEventHandler('onResourceStop', function(resource)
+    if resource ~= GetCurrentResourceName() then return end
+    for src, mine in pairs(published) do
+        if mine.sdPhone then put(src, 'sdPhone', false) end
+    end
 end)
 
 ---Client-reported shell state: open/soft-open/battery are only knowable on the client, so it

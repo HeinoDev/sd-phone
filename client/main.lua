@@ -224,8 +224,8 @@ local currentSimState = nil
 
 ---@type string Current frame colour; always one of FRAME_COLORS.
 local currentFrameColor = config.Phone.DefaultColor or 'black'
----@type table<string, boolean> Whitelist of valid frame colours (client.framecolors).
-local FRAME_COLORS = require 'client.framecolors'
+---@type table<string, boolean> Whitelist of valid frame colours (shared.framecolors).
+local FRAME_COLORS = require 'shared.framecolors'
 
 ---@type integer Wall-clock ms of the session start (re-stamped on character load); the Health app's
 ---"time awake" anchor. Seeded at script load as a fallback for opens before the character resolves.
@@ -292,14 +292,10 @@ end
 local function broadcastHoldState()
     if not config.Phone.PropVisibleToOthers then return end
     if not pose.shouldHold() then
-        LocalPlayer.state:set('sdPhone', false, true)
+        TriggerServerEvent('sd-phone:server:statebags:hold', false)
         return
     end
-    -- Widened from a bare colour so watchers weld the unfolded body too. A holder who is shut
-    -- still broadcasts the plain string, which is what every older reader understands, and so
-    -- does one whose fold never changes the prop, so watchers have no re-weld to do.
-    LocalPlayer.state:set('sdPhone',
-        (pose.isFolded() and pose.foldChangesProp()) and { c = currentFrameColor, f = true } or currentFrameColor, true)
+    TriggerServerEvent('sd-phone:server:statebags:hold', currentFrameColor, pose.isFolded() and pose.foldChangesProp())
 end
 
 ---Pushes the current state into the pose module, which starts or stops the held clip to match,
@@ -1339,17 +1335,16 @@ RegisterNetEvent('sd-phone:client:rehydrate', pushCharacterLoaded)
 ---character exists - the server ignores the SIM request then, and the real load event follows.
 AddEventHandler('onClientResourceStart', function(resource)
     if resource ~= GetCurrentResourceName() then return end
+    broadcastHoldState()
     SetTimeout(5000, pushCharacterLoaded)
 end)
 
----Resource-stop cleanup: releases NUI focus, deletes props, clears the statebag, and stops the
----hold anim.
+---Resource-stop cleanup for NUI focus, local props and the hold animation.
 ---@param resource string name of the resource that stopped
 AddEventHandler('onResourceStop', function(resource)
     if resource ~= GetCurrentResourceName() then return end
     if phoneState.open then SetNuiFocus(false, false) end
     pose.stop()
-    if config.Phone.PropVisibleToOthers then LocalPlayer.state:set('sdPhone', false, true) end
     remoteprops.clear()
 end)
 

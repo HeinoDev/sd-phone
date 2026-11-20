@@ -119,6 +119,25 @@ lib.callback.register('sd-phone:server:garages:setLock', function(src, netId, lo
     return locked == true
 end)
 
+---Renewed's lock handler listens to vehicleLock. Publish it from the server after checking keys.
+lib.callback.register('sd-phone:server:garages:setRenewedLock', function(src, netId, locked)
+    if GetResourceState('Renewed-Vehiclekeys') ~= 'started' or type(locked) ~= 'boolean' then return nil end
+    if type(netId) ~= 'number' or not math.tointeger(netId) or netId <= 0 or netId > 0x7fffffff then return nil end
+
+    local veh = NetworkGetEntityFromNetworkId(netId)
+    if veh == 0 or GetEntityType(veh) ~= 2 then return nil end
+    if GetEntityRoutingBucket(veh) ~= GetPlayerRoutingBucket(src) then return nil end
+
+    local plate = GetVehicleNumberPlateText(veh)
+    local key = plate and plate:match('^%s*(.-)%s*$')
+    if not key or key == '' or exports['Renewed-Vehiclekeys']:hasKey(src, key) ~= true then return nil end
+    if NetworkGetEntityFromNetworkId(netId) ~= veh or GetVehicleNumberPlateText(veh) ~= plate then return nil end
+    if GetEntityRoutingBucket(veh) ~= GetPlayerRoutingBucket(src) then return nil end
+
+    Entity(veh).state:set('vehicleLock', { lock = locked and 2 or 1, sound = true }, true)
+    return locked
+end)
+
 ---The bridge's resolution report as printable lines.
 ---@param src number caller server id
 ---@return string[] lines

@@ -482,60 +482,29 @@ stubExport('TaskUpdate', nil, TASK_WHY)
 stubExport('TaskListUpdate', nil, TASK_WHY)
 stubExport('TaskList', {}, TASK_WHY)
 
--- gksphone's own state bags, mirrored from sd-phone's. sd-phone publishes phoneOpen, softOpen,
--- batteryLevel, airplaneMode, phoneDisabled, inCall, callId and callStatus already; the four below
--- are gksphone's own names for values sd-phone has, written replicated so a server-side reader sees
--- them too. phoneIsCharging and phoneIsChargingStation are absent rather than published false: they
--- describe a charging model sd-phone does not have, and a hard false would read as a live answer.
-
----Publishes one gksphone-named state bag on the local player, replicated so a server-side reader
----resolves it as well.
----@param key string gksphone state bag key
----@param value any
-local function publish(key, value)
-    pcall(function() LocalPlayer.state:set(key, value, true) end)
-end
-
----Reports the shell state only the client can know to the server, which does the replicated write
----for sd-phone's OWN bags (phoneOpen, softOpen, batteryLevel, airplaneMode) and gives the server
----half a per-player heartbeat to re-apply a jam on.
----@param open boolean|nil
-local function reportUp(open)
-    TriggerServerEvent('sd-phone:server:statebags:report', {
-        open    = open,
-        soft    = sd:isCompanionOpen() == true,
-        battery = sd:getBattery(),
-    })
-end
-
----Republishes every gksphone-named bag from sd-phone's live state. `phoneSignal` follows gksphone's
----own wording, which describes a BROKEN signal, so it is the inverse of sd-phone's coverage read.
----The number is published only once the cache is warm, so a cold read never blocks an open.
-local function publishAll(number)
-    if number then publish('phoneNumber', number) end
-    publish('phoneOpen', sd:isOpen() == true)
-    publish('phoneBattery', sd:getBattery())
-    publish('phoneSignal', sd:hasService('data') ~= true)
+---GKSPhone's phoneSignal is true when coverage is lost. Battery comes from the regular shell
+---report, and the server publishes phoneNumber when it resolves the caller's handset.
+local function reportSignal()
+    TriggerServerEvent('sd-phone:server:compat:gks:signal', sd:hasService('data') ~= true)
 end
 
 AddEventHandler('sd-phone:client:openState', function(open)
-    publish('phoneOpen', open == true)
-    publish('phoneSignal', sd:hasService('data') ~= true)
-    if selfCache.number then publish('phoneNumber', selfCache.number) end
-    reportUp(open == true)
-end)
-
-AddEventHandler('sd-phone:client:battery', function(level)
-    publish('phoneBattery', level)
-    TriggerServerEvent('sd-phone:server:statebags:report', { battery = level })
+    reportSignal()
+    if open == true then selfInfo() end
 end)
 
 -- A resource restart lands mid-session, where no open/close edge is coming. The wait lets the
 -- character load before the first number lookup, which would otherwise cache a nil.
 CreateThread(function()
     Wait(5000)
-    publishAll(selfInfo().number)
-    reportUp(sd:isOpen() == true)
+    reportSignal()
+    selfInfo()
+    -- Re-report after character load so the server can restore airplane mode and jamming.
+    TriggerServerEvent('sd-phone:server:statebags:report', {
+        open    = sd:isOpen() == true,
+        soft    = sd:isCompanionOpen() == true,
+        battery = sd:getBattery(),
+    })
 end)
 
 -- gksphone's own commands, registered for the muscle memory of a server moving off it. Only the

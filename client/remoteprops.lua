@@ -2,8 +2,8 @@
 local config = require 'configs.config'
 ---@type table Hold pose (client.pose): createProp builds the welded copy.
 local pose = require 'client.pose'
----@type table<string, boolean> Valid frame colours (client.framecolors).
-local FRAME_COLORS = require 'client.framecolors'
+---@type table<string, boolean> Valid frame colours (shared.framecolors).
+local FRAME_COLORS = require 'shared.framecolors'
 
 ---@type table Module table; the table returned at end of file. Owns the local phone-prop copies
 ---welded onto OTHER players, driven by the replicated `sdPhone` statebag each holder broadcasts.
